@@ -17,18 +17,13 @@ namespace TeamCommands {
                 HelpText = "Runs a command to an entire team. Format: /team [command]. Any user-specific TShock command will work."
             });
         }
-        public override Version Version {
-            get { return new Version("1.2"); }
-        }
-        public override string Name {
-            get { return "Team Commands"; }
-        }
-        public override string Author {
-            get { return "GameRoom"; }
-        }
-        public override string Description {
-            get { return "Runs commands to entire team."; }
-        }
+        public override Version Version => new Version("1.2");
+
+        public override string Name => "Team Commands";
+
+        public override string Author => "GameRoom";
+
+        public override string Description => "Runs commands to entire team.";
 
         int TeamColorToID(string color, TSPlayer who) {
             switch (color.ToLower()) {
@@ -43,9 +38,9 @@ namespace TeamCommands {
             }
         }
 
-        string TeamIDToColor(int ID, bool capitalize = true) {
+        string TeamIDToColor(int id, bool capitalize = true) {
             string ret;
-            switch (ID) {
+            switch (id) {
                 case 0: ret = "The white team";
                     break;
                 case 1: ret = "The red team";
@@ -77,8 +72,11 @@ namespace TeamCommands {
                             var team = TeamColorToID(e.Parameters[1], e.Player);
                             foreach (TSPlayer player in TShock.Players)
                                 if (player != null && (team == player.Team || team == 5))
-                                    TShock.Utils.Kick(player, reason, !e.Player.RealPlayer, true, e.Player.Name);
-                                TShock.Utils.Broadcast(string.Format("{0} was kicked for '{1}'", TeamIDToColor(team), reason.ToLower()), Color.Green);
+                                {
+                                    //TShock.Utils.Kick(player, reason, !e.Player.RealPlayer, true, e.Player.Name);
+                                    TSPlayer.Server.Kick(reason, !e.Player.RealPlayer, true, e.Player.Name);
+                                }
+                            TShock.Utils.Broadcast($"{TeamIDToColor(team)} was kicked for '{reason.ToLower()}'", Color.Green);
                         }
                     break;
 
@@ -88,11 +86,10 @@ namespace TeamCommands {
                         var team = TeamColorToID(e.Parameters[1], e.Player);
                         foreach (TSPlayer player in TShock.Players)
                             if (player != null && (team == player.Team || team == 5) && (!player.Group.HasPermission(Permissions.immunetoban) || e.Player.RealPlayer)) {
-                                var user = TShock.Users.GetUserByID(player.Index);
-                                var knownIps = JsonConvert.DeserializeObject<List<string>>(user.KnownIps);
-                                TShock.Bans.AddBan(knownIps.Last(), user.Name, user.UUID, reason, false, e.Player.User.Name);
+                                var knownIps = JsonConvert.DeserializeObject<List<string>>(player.IP);
+                                TShock.Bans.AddBan(knownIps.Last(), player.Name, player.UUID, player.Account.Name, reason);
                             }
-                        TShock.Utils.Broadcast(string.Format("{0} was banned for '{1}'", TeamIDToColor(team), reason.ToLower()), Color.Green);
+                        TShock.Utils.Broadcast($"{TeamIDToColor(team)} was banned for '{reason.ToLower()}'", Color.Green);
                     }
                     break;
 
@@ -108,9 +105,9 @@ namespace TeamCommands {
                         var team = TeamColorToID(e.Parameters[1], e.Player);
                         foreach (TSPlayer player in TShock.Players)
                             if (player != null && (team == player.Team || team == 5) && (!player.Group.HasPermission(Permissions.immunetoban) || e.Player.RealPlayer))
-                                    if (TShock.Bans.AddBan(player.IP, player.Name, player.UUID, reason, false, e.Player.Name, DateTime.UtcNow.AddSeconds(time).ToString("s")))
-                                        player.Disconnect(String.Format("Banned: {0}", reason));
-                        TShock.Utils.Broadcast(string.Format("{0} was banned for '{1}'", TeamIDToColor(team), reason.ToLower()), Color.Green);
+                                    if (TShock.Bans.AddBan(player.IP, player.Name, player.UUID, player.Account.Name, reason, false, DateTime.UtcNow.AddSeconds(time).ToString("s")))
+                                        player.Disconnect($"Banned: {reason}");
+                        TShock.Utils.Broadcast($"{TeamIDToColor(team)} was banned for '{reason.ToLower()}'", Color.Green);
                     }
                     break;
 
@@ -121,7 +118,7 @@ namespace TeamCommands {
                         foreach (TSPlayer player in TShock.Players)
                             if (player != null && (team == player.Team || team == 5) && !player.Group.HasPermission(Permissions.mute))
                                 player.mute = true;
-                        TShock.Utils.Broadcast(string.Format("{0} was muted for '{1}'", TeamIDToColor(team), reason.ToLower()), Color.Green);
+                        TShock.Utils.Broadcast($"{TeamIDToColor(team)} was muted for '{reason.ToLower()}'", Color.Green);
                     }
                     break;
 
@@ -131,7 +128,7 @@ namespace TeamCommands {
                         foreach (TSPlayer player in TShock.Players)
                             if (player != null && (team == player.Team || team == 5))
                                 player.mute = false;
-                        TShock.Utils.Broadcast(string.Format("{0} was unmuted by {1}.", TeamIDToColor(team), e.Player.Name), Color.Green);
+                        TShock.Utils.Broadcast($"{TeamIDToColor(team)} was unmuted by {e.Player.Name}.", Color.Green);
                     }
                     break;
 
@@ -139,15 +136,15 @@ namespace TeamCommands {
                     if (CommandIsValid(e, Permissions.settempgroup, 3, "tempgroup <team> <new group>")) {
                         var team = TeamColorToID(e.Parameters[1], e.Player);
                         if (!TShock.Groups.GroupExists(e.Parameters[2]))
-                            e.Player.SendErrorMessage(string.Format("Could not find group {0}", e.Parameters[2]));
+                            e.Player.SendErrorMessage($"Could not find group {e.Parameters[2]}");
                         else {
-                            var g = TShock.Utils.GetGroup(e.Parameters[2]);
                             foreach (TSPlayer player in TShock.Players)
-                                if (player != null && (team == player.Team || team == 5)) {
-                                    player.tempGroup = g;
-                                    player.SendSuccessMessage(string.Format("Your group has temporarily been changed to {0}", g.Name));
+                                if (player != null && (team == player.Team || team == 5))
+                                {
+                                    player.tempGroup = TShock.Groups.GetGroupByName(e.Parameters[2]);
+                                    player.SendSuccessMessage($"Your group has temporarily been changed to {TShock.Groups.GetGroupByName(e.Parameters[2])}");
                                 }
-                            e.Player.SendSuccessMessage(string.Format("You have changed {0}'s group to {1}", TeamIDToColor(team, false), g.Name));
+                            e.Player.SendSuccessMessage($"You have changed {TeamIDToColor(team, false)}'s group to {TShock.Groups.GetGroupByName(e.Parameters[2])}");
                         }
                     }
                     break;
@@ -156,15 +153,14 @@ namespace TeamCommands {
                     if (CommandIsValid(e, Permissions.managegroup, 3, "usergroup <team> <new group>")) {
                         var team = TeamColorToID(e.Parameters[1], e.Player);
                         if (!TShock.Groups.GroupExists(e.Parameters[2]))
-                            e.Player.SendErrorMessage(string.Format("Could not find group {0}", e.Parameters[2]));
+                            e.Player.SendErrorMessage($"Could not find group {e.Parameters[2]}");
                         else {
-                            var g = TShock.Utils.GetGroup(e.Parameters[2]);
                             foreach (TSPlayer player in TShock.Players)
                                 if (player != null && (team == player.Team || team == 5)) {
-                                    player.Group = g;
-                                    player.SendSuccessMessage(string.Format("Your group has been changed to {0}", g.Name));
+                                    player.Group = TShock.Groups.GetGroupByName(e.Parameters[2]);
+                                    player.SendSuccessMessage($"Your group has been changed to {TShock.Groups.GetGroupByName(e.Parameters[2])}");
                                 }
-                            e.Player.SendSuccessMessage(string.Format("You have changed {0}'s group to {1}", TeamIDToColor(team, false), g.Name));
+                            e.Player.SendSuccessMessage($"You have changed {TeamIDToColor(team, false)}'s group to {TShock.Groups.GetGroupByName(e.Parameters[2])}");
                         }
                     }
                     break;
@@ -178,7 +174,6 @@ namespace TeamCommands {
                             int itemAmount = 0;
                             int prefix = 0;
                             var items = TShock.Utils.GetItemByIdOrName(e.Parameters[1]);
-                            string plStr = e.Parameters[2];
                             if (e.Parameters.Count == 4)
                                 int.TryParse(e.Parameters[3], out itemAmount);
                             else if (e.Parameters.Count == 5) {
@@ -196,10 +191,13 @@ namespace TeamCommands {
                             }
 
                             if (items.Count == 0)
+                            {
                                 e.Player.SendErrorMessage("Invalid item type!");
+                            }
                             else if (items.Count > 1)
-                                TShock.Utils.SendMultipleMatchError(e.Player, items.Select(i => i.Name));
-                            else {
+                            {
+                                e.Player.SendMultipleMatchError(items.Select(i => i.Name));
+                            } else {
                                 var item = items[0];
 				                if (item.type >= 1 && item.type < Main.maxItemTypes) {
                                     var team = TeamColorToID(e.Parameters[2], e.Player);
@@ -207,11 +205,13 @@ namespace TeamCommands {
                                         if (player != null && (team == player.Team || team == 5) && (player.InventorySlotAvailable || (item.type > 70 && item.type < 75) || item.ammo > 0 || item.type == 58 || item.type == 184)) {
                                             if (itemAmount == 0 || itemAmount > item.maxStack)
                                                 itemAmount = item.maxStack;
-                                           player.GiveItem(item.type, item.Name, item.width, item.height, itemAmount, prefix);
+                                            player.GiveItem(item.type, itemAmount, prefix);
                                            if (player != e.Player)
-                                                player.SendSuccessMessage(string.Format("{0} gave you {1} {2}(s).", e.Player.Name, itemAmount, item.Name));
+                                                player.SendSuccessMessage(
+                                                    $"{e.Player.Name} gave you {itemAmount} {item.Name}(s).");
                                         }
-                                    e.Player.SendSuccessMessage(string.Format("Gave {0} {1} {2}(s).", TeamIDToColor(team, false), itemAmount, item.Name));
+                                    e.Player.SendSuccessMessage(
+                                        $"Gave {TeamIDToColor(team, false)} {itemAmount} {item.Name}(s).");
                                 } else e.Player.SendErrorMessage("Invalid item type!");
                             }
                         }
@@ -223,7 +223,7 @@ namespace TeamCommands {
                         foreach (TSPlayer player in TShock.Players)
                             if (player != null && player.Active && !player.Dead && player.Team == team && player != e.Player) {
                                 player.Teleport(e.TPlayer.position.X, e.TPlayer.position.Y);
-								player.SendSuccessMessage(String.Format("You were teleported to {0}.", e.Player.Name));
+								player.SendSuccessMessage($"You were teleported to {e.Player.Name}.");
                             }
                         e.Player.SendSuccessMessage("Teleported {0} to yourself.", TeamIDToColor(team, false));
                     }
@@ -240,8 +240,7 @@ namespace TeamCommands {
                                 if (found.Count == 0)
                                     e.Player.SendErrorMessage("Invalid buff name!");
                                 else if (found.Count > 1)
-                                    //TShock.Utils.SendMultipleMatchError(e.Player, found.Select(b => Main.buffName[b]));
-                                    TShock.Utils.SendMultipleMatchError(e.Player, found.Select(b => Lang.GetBuffName(b)));
+                                    e.Player.SendMultipleMatchError(found.Select(b => Lang.GetBuffName(b)));
                                 else id = found[0];
                         }
                         if (e.Parameters.Count == 4)
@@ -253,13 +252,11 @@ namespace TeamCommands {
                                 if (player != null && player.Active && !player.Dead && player.Team == team) {
                                     player.SetBuff(id, time * 60);
                                     if (player != e.Player)
-                                        player.SendSuccessMessage(string.Format("{0} has buffed you with {1}({2}) for {3} seconds!",
-                                                                            e.Player.Name, TShock.Utils.GetBuffName(id),
-                                                                            TShock.Utils.GetBuffDescription(id), (time)));
+                                        player.SendSuccessMessage(
+                                            $"{e.Player.Name} has buffed you with {TShock.Utils.GetBuffName(id)}({TShock.Utils.GetBuffDescription(id)}) for {(time)} seconds!");
                                 }
-                            e.Player.SendSuccessMessage(string.Format("You have buffed {0} with {1}({2}) for {3} seconds!",
-                                                                  TeamIDToColor(team, false), TShock.Utils.GetBuffName(id),
-                                                                  TShock.Utils.GetBuffDescription(id), (time)));
+                            e.Player.SendSuccessMessage(
+                                $"You have buffed {TeamIDToColor(team, false)} with {TShock.Utils.GetBuffName(id)}({TShock.Utils.GetBuffDescription(id)}) for {(time)} seconds!");
                         } else e.Player.SendErrorMessage("Invalid buff ID!");
                     }
                     break;
@@ -271,9 +268,9 @@ namespace TeamCommands {
                             if (player != null && player.Active && !player.Dead && player.Team == team) {
                                 player.Heal();
                                 if (player != e.Player)
-                                    player.SendSuccessMessage(string.Format("{0} just healed you!", e.Player.Name));
+                                    player.SendSuccessMessage($"{e.Player.Name} just healed you!");
                             }
-                        e.Player.SendSuccessMessage(String.Format("You just healed {0}.", TeamIDToColor(team, false)));
+                        e.Player.SendSuccessMessage($"You just healed {TeamIDToColor(team, false)}.");
                     }
                     break;
 
@@ -318,7 +315,7 @@ namespace TeamCommands {
                         PaginationTools.SendPage(e.Player, pageNumber, plrs,
                             new PaginationTools.Settings {
                                 IncludeHeader = false,
-                                FooterFormat = string.Format("Type /team who {0} {{0}} for more.", TeamIDToColor(team))
+                                FooterFormat = $"Type /team who {TeamIDToColor(team)} {{0}} for more."
                             }
                         );
                     }
@@ -332,8 +329,8 @@ namespace TeamCommands {
                             foreach (TSPlayer player in TShock.Players)
                                 if (player != null && player.Active && !player.Dead && player.Team == team)
                                     if (player.Teleport(warp.Position.X * 16, warp.Position.Y * 16) && player != e.Player)
-                                        player.SendSuccessMessage(String.Format("{0} warped you to {1}.", e.Player.Name, e.Parameters[2]));
-                            e.Player.SendSuccessMessage(String.Format("You warped {0} to {1}.", TeamIDToColor(team, false), e.Parameters[2]));
+                                        player.SendSuccessMessage($"{e.Player.Name} warped you to {e.Parameters[2]}."); e.Player.SendSuccessMessage(
+                                $"You warped {TeamIDToColor(team, false)} to {e.Parameters[2]}.");
                         }
                         else e.Player.SendErrorMessage("Specified warp not found.");
                     }
